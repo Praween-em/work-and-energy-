@@ -1,0 +1,773 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Work by Constant Force — Simulation</title>
+<style>
+  :root{
+    --bg:#071024;
+    --card:#07182a;
+    --accent:#38bdf8;
+    --accent-2:#60a5fa;
+    --good:#10b981;
+    --warn:#f59e0b;
+    --muted:#9fb3d6;
+    --panel:#0c1b2d;
+  }
+  html,body{height:100%;margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial;}
+  body{
+    background:linear-gradient(180deg,var(--bg),#021022 120%);
+    color:#e6f0ff;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:18px;
+  }
+
+  /* Outer responsive container */
+  .app{
+    width:100%;
+    max-width:960px;
+    background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+    border-radius:14px;
+    padding:12px;
+    box-shadow:0 10px 40px rgba(2,8,23,0.7);
+    display:grid;
+    gap:12px;
+    grid-template-columns: 1fr 360px;
+  }
+
+  /* stacked for small screens */
+  @media (max-width:880px){
+    .app{ grid-template-columns: 1fr; padding:10px; }
+  }
+
+  /* Stage (left) */
+  .stageCard{
+    background:linear-gradient(180deg,#07162a 0%, #031024 100%);
+    border-radius:10px;
+    padding:10px;
+    min-height:420px;
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+  }
+  .stageTop{
+    display:flex;
+    justify-content:space-between;
+    gap:8px;
+    align-items:center;
+  }
+  .title{font-weight:700;font-size:16px;color:var(--accent);}
+  .stage{
+    flex:1;
+    background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.005));
+    border-radius:8px;
+    position:relative;
+    overflow:hidden;
+    display:flex;
+    align-items:flex-end;
+    justify-content:flex-start;
+    padding:12px;
+  }
+
+  /* Ground */
+  .ground{
+    position:absolute;
+    left:0;right:0;bottom:56px;
+    height:6px;
+    background:linear-gradient(90deg,#0b2a3f,#08324a);
+    box-shadow:0 -2px 6px rgba(0,0,0,0.6);
+  }
+
+  /* object block */
+  .block{
+    width:56px;
+    height:40px;
+    background:linear-gradient(180deg,#f97316,#b45309);
+    border-radius:6px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    color:#061223;
+    font-weight:800;
+    position:absolute;
+    bottom:62px;
+    left:24px;
+    box-shadow:0 8px 20px rgba(0,0,0,0.6);
+    transform-origin:center center;
+  }
+
+  /* arrow for force */
+  svg.forceLayer{
+    position:absolute; left:0; top:0; width:100%; height:100%; pointer-events:none;
+  }
+
+  /* controls & metrics (right column) */
+  .side{
+    background:linear-gradient(180deg,var(--panel), #071227);
+    border-radius:10px;
+    padding:12px;
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+    min-height:420px;
+  }
+  .controls{ display:flex; flex-direction:column; gap:10px; }
+  .row{ display:flex; gap:8px; align-items:center; }
+  .row label{ width:110px; font-size:13px; color:var(--muted); }
+  input[type="range"]{ flex:1; }
+  .num{ width:84px; padding:6px 8px; border-radius:8px; border:1px solid rgba(255,255,255,0.05); background:transparent; color:var(--accent-2); text-align:center; font-weight:700; }
+  .btnRow{ display:flex; gap:8px; }
+  button.btn{
+    flex:1; padding:8px; border-radius:8px; background:linear-gradient(180deg,#04263b,#013047); color:var(--accent); border:1px solid rgba(56,189,248,0.12); cursor:pointer; font-weight:700;
+  }
+  .small{ font-size:13px; color:var(--muted); }
+
+  .metrics{
+    display:grid;
+    grid-template-columns: repeat(2,1fr);
+    gap:8px;
+    background:linear-gradient(180deg,#081a2a,#041322);
+    border-radius:8px;
+    padding:10px;
+  }
+  .metricCard{
+    background:linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.005));
+    padding:8px;
+    border-radius:8px;
+    text-align:center;
+  }
+  .metricCard .label{ color:var(--muted); font-size:12px; }
+  .metricCard .val{ color:var(--accent); font-weight:800; margin-top:6px; font-size:16px; }
+
+  /* graph */
+  .graphWrap{ background:#021526; border-radius:8px; padding:8px; min-height:140px; display:flex; flex-direction:column; gap:6px; }
+  canvas{ width:100%; height:120px; border-radius:6px; background:linear-gradient(180deg,#001a25,#00101a); display:block; }
+
+  /* presets */
+  .presets{ display:flex; gap:8px; flex-wrap:wrap; }
+  .chip{ padding:6px 10px; border-radius:999px; background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.03); color:var(--muted); cursor:pointer; font-weight:700; }
+
+  /* footer info */
+  .footer{ font-size:12px; color:var(--muted); text-align:center; padding:6px 0; }
+</style>
+</head>
+<body>
+  <div class="app" role="application" aria-label="Work by constant force simulation">
+
+    <!-- LEFT: Stage + controls top -->
+    <div class="stageCard" id="stageCard">
+      <div class="stageTop">
+        <div class="title">Work by Constant Force — Simulation</div>
+        <div class="small">Mobile-friendly • Live metrics</div>
+      </div>
+
+      <div class="stage" id="stage">
+        <!-- SVG layer for arrows -->
+        <svg class="forceLayer" id="svgLayer" viewBox="0 0 1000 600" preserveAspectRatio="none" aria-hidden="true"></svg>
+
+        <!-- ground -->
+        <div class="ground" id="ground"></div>
+
+        <!-- moving block -->
+        <div class="block" id="block">m</div>
+      </div>
+
+      <div class="graphWrap">
+        <div class="small" style="display:flex;justify-content:space-between;align-items:center">
+          <div>Work vs Displacement</div>
+          <div class="small" id="graphInfo">W = 0 J at s = 0 m</div>
+        </div>
+        <canvas id="graphCanvas" width="600" height="120"></canvas>
+      </div>
+
+      <div class="footer">Use presets to run classic experiments. W is computed as ∫F∥ dx; ΔKE shown for verification.</div>
+    </div>
+
+    <!-- RIGHT: Controls & metrics -->
+    <div class="side" id="side">
+      <div class="controls">
+
+        <div class="row">
+          <label>Force F (N)</label>
+          <input id="forceRange" type="range" min="-50" max="50" step="0.1" value="10">
+          <input id="forceNum" class="num" type="number" step="0.1" value="10">
+        </div>
+
+        <div class="row">
+          <label>Angle θ (°)</label>
+          <input id="angleRange" type="range" min="-180" max="180" step="1" value="0">
+          <input id="angleNum" class="num" type="number" step="1" value="0">
+        </div>
+
+        <div class="row">
+          <label>Mass m (kg)</label>
+          <input id="massRange" type="range" min="0.1" max="50" step="0.1" value="2">
+          <input id="massNum" class="num" type="number" step="0.1" value="2">
+        </div>
+
+        <div class="row">
+          <label>Init speed u (m/s)</label>
+          <input id="uRange" type="range" min="-5" max="5" step="0.01" value="0">
+          <input id="uNum" class="num" type="number" step="0.01" value="0">
+        </div>
+
+        <div class="row">
+          <label>μ (friction)</label>
+          <input id="muRange" type="range" min="0" max="1" step="0.01" value="0">
+          <input id="muNum" class="num" type="number" step="0.01" value="0">
+        </div>
+
+        <div class="row">
+          <label>Scale (m → px)</label>
+          <input id="scaleRange" type="range" min="20" max="160" step="1" value="80">
+          <input id="scaleNum" class="num" type="number" step="1" value="80">
+        </div>
+
+        <div class="btnRow">
+          <button class="btn" id="startBtn">Start</button>
+          <button class="btn" id="pauseBtn">Pause</button>
+          <button class="btn" id="resetBtn">Reset</button>
+        </div>
+
+        <div style="display:flex;gap:8px;">
+          <button class="chip" id="exportCSV">Export CSV</button>
+          <button class="chip" id="stepBtn">Step (dt)</button>
+        </div>
+
+        <div style="margin-top:6px">
+          <div style="font-weight:800;color:var(--muted);margin-bottom:6px">Presets</div>
+          <div class="presets">
+            <div class="chip" data-preset="basic">Basic: F=10N, m=2kg</div>
+            <div class="chip" data-preset="opp">Braking: F=-10N, u=4m/s</div>
+            <div class="chip" data-preset="angle">Angle 30°</div>
+            <div class="chip" data-preset="fric">With friction μ=0.3</div>
+            <div class="chip" data-preset="verify">Verify W=ΔKE</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="metrics" aria-live="polite">
+        <div class="metricCard">
+          <div class="label">Displacement s (m)</div>
+          <div class="val" id="sVal">0.00</div>
+        </div>
+        <div class="metricCard">
+          <div class="label">F∥ (N)</div>
+          <div class="val" id="FparVal">0.00</div>
+        </div>
+        <div class="metricCard">
+          <div class="label">Instant dW (J)</div>
+          <div class="val" id="dWVal">0.00</div>
+        </div>
+        <div class="metricCard">
+          <div class="label">Cumulative W (J)</div>
+          <div class="val" id="WVal">0.00</div>
+        </div>
+        <div class="metricCard">
+          <div class="label">KE (J)</div>
+          <div class="val" id="KEVal">0.00</div>
+        </div>
+        <div class="metricCard">
+          <div class="label">ΔKE (J)</div>
+          <div class="val" id="dKEVal">0.00</div>
+        </div>
+        <div class="metricCard">
+          <div class="label">Error W−ΔKE (J)</div>
+          <div class="val" id="errVal">0.00</div>
+        </div>
+        <div class="metricCard">
+          <div class="label">Power P (W)</div>
+          <div class="val" id="PVal">0.00</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+<script>
+/*
+  Work by constant force simulation
+  - Physics uses fixed-step integration (substeps) for stability
+  - Work dW = F_parallel * ds (incremental)
+  - KE = 1/2 m v^2 ; ΔKE = KE - KE_initial
+  - Friction fk = μ * m * g (opposes motion when sliding)
+  - Angle θ sets the component F∥ = F cosθ
+*/
+
+// Elements
+const block = document.getElementById('block');
+const stage = document.getElementById('stage');
+const svgLayer = document.getElementById('svgLayer');
+const graphCanvas = document.getElementById('graphCanvas');
+const gctx = graphCanvas.getContext('2d');
+
+const sVal = document.getElementById('sVal');
+const FparVal = document.getElementById('FparVal');
+const dWVal = document.getElementById('dWVal');
+const WVal = document.getElementById('WVal');
+const KEVal = document.getElementById('KEVal');
+const dKEVal = document.getElementById('dKEVal');
+const errVal = document.getElementById('errVal');
+const PVal = document.getElementById('PVal');
+const graphInfo = document.getElementById('graphInfo');
+
+const inputs = ['force','angle','mass','u','mu','scale'];
+const els = {
+  forceRange: document.getElementById('forceRange'),
+  forceNum: document.getElementById('forceNum'),
+  angleRange: document.getElementById('angleRange'),
+  angleNum: document.getElementById('angleNum'),
+  massRange: document.getElementById('massRange'),
+  massNum: document.getElementById('massNum'),
+  uRange: document.getElementById('uRange'),
+  uNum: document.getElementById('uNum'),
+  muRange: document.getElementById('muRange'),
+  muNum: document.getElementById('muNum'),
+  scaleRange: document.getElementById('scaleRange'),
+  scaleNum: document.getElementById('scaleNum'),
+};
+
+const startBtn = document.getElementById('startBtn');
+const pauseBtn = document.getElementById('pauseBtn');
+const resetBtn = document.getElementById('resetBtn');
+const exportCSV = document.getElementById('exportCSV');
+const stepBtn = document.getElementById('stepBtn');
+const presetChips = document.querySelectorAll('.chip[data-preset]');
+
+// Constants
+const g = 9.81; // gravity m/s^2
+
+// State
+let params = {
+  F: parseFloat(els.forceNum.value),
+  theta: parseFloat(els.angleNum.value) * Math.PI/180,
+  m: parseFloat(els.massNum.value),
+  u: parseFloat(els.uNum.value),
+  mu: parseFloat(els.muNum.value),
+  scale: parseFloat(els.scaleNum.value), // px per meter
+};
+
+let state = {
+  x: 0,       // displacement (m) from start
+  v: params.u,// velocity m/s
+  t: 0,       // elapsed time s
+  W: 0,       // cumulative work J (applied F component integrated)
+  KE0: 0,     // initial KE
+  data: []    // time series records for CSV/graph
+};
+
+let running = false;
+let lastRAF = null;
+
+// Physics stepping settings
+const physicsDt = 0.006; // fixed physics dt (s)
+const substeps = 1;      // can increase for accuracy
+
+// Graphing settings
+let graphPoints = []; // array of {s, W}
+const maxPoints = 2000;
+
+// Helpers: sync range/number inputs
+function bindRangeNum(rangeEl, numEl, onChange){
+  rangeEl.addEventListener('input', () => {
+    numEl.value = rangeEl.value;
+    onChange && onChange(rangeEl.value);
+  });
+  numEl.addEventListener('change', () => {
+    let v = Number(numEl.value);
+    if(isNaN(v)) v = Number(rangeEl.value);
+    rangeEl.value = v;
+    onChange && onChange(v);
+  });
+}
+bindRangeNum(els.forceRange, els.forceNum, v=>{ params.F = Number(v); });
+bindRangeNum(els.angleRange, els.angleNum, v=>{ params.theta = Number(v) * Math.PI/180; });
+bindRangeNum(els.massRange, els.massNum, v=>{ params.m = Number(v); });
+bindRangeNum(els.uRange, els.uNum, v=>{ params.u = Number(v); });
+bindRangeNum(els.muRange, els.muNum, v=>{ params.mu = Number(v); });
+bindRangeNum(els.scaleRange, els.scaleNum, v=>{ params.scale = Number(v); layoutUpdate(); });
+
+// Layout & coordinate conversions
+function metersToPx(m){
+  return m * params.scale;
+}
+function pxToMeters(px){
+  return px / params.scale;
+}
+function layoutUpdate(){
+  // reposition block based on state.x
+  const leftPx = 24 + metersToPx(state.x);
+  block.style.left = `${leftPx}px`;
+  // ensure svg viewBox height/width adapt
+  // (svg uses viewBox 0 0 1000 600; map stage pixel to that)
+  drawForceArrows();
+}
+
+// Force drawing
+function drawForceArrows(){
+  const svg = svgLayer;
+  while(svg.firstChild) svg.removeChild(svg.firstChild);
+
+  const rect = stage.getBoundingClientRect();
+  const width = rect.width;
+  const height = rect.height;
+
+  // map stage pixels to viewBox coords (use simple 1000x600)
+  const vbW = 1000, vbH = 600;
+  const scaleX = vbW / width, scaleY = vbH / height;
+
+  const blockRect = block.getBoundingClientRect();
+  if (blockRect.right >= rect.right - 10 || blockRect.left <= rect.left + 10) {
+  running = false;
+}
+  const bx = (blockRect.left - rect.left) * scaleX + blockRect.width*0.5*scaleX;
+  const by = (blockRect.top - rect.top) * scaleY + blockRect.height*0.5*scaleY;
+
+  // applied force arrow (F)
+  const FpxLen = Math.min(220, Math.abs(params.F) * 3); // visual scale
+  const angleDeg = params.theta * 180/Math.PI;
+  const sign = params.F >= 0 ? 1 : -1;
+  const Fx = Math.cos(params.theta) * sign;
+  const Fy = -Math.sin(params.theta) * sign; // SVG y downwards -> invert
+
+  const ax = bx;
+  const ay = by;
+  const bx2 = bx + Fx * FpxLen;
+  const by2 = by + Fy * FpxLen;
+
+  const ns = (name, attrs) => {
+    const el = document.createElementNS('http://www.w3.org/2000/svg', name);
+    for(const k in attrs) el.setAttribute(k, attrs[k]);
+    return el;
+  };
+
+  // line
+  svg.appendChild(ns('line',{x1:ax,y1:ay,x2:bx2,y2:by2,stroke:params.F>=0? '#60f0ff': '#ffa3a3', 'stroke-width':6, 'stroke-linecap':'round', opacity:0.95}));
+
+  // arrow head
+  const ah1 = ns('path',{d:`M ${bx2} ${by2} l ${-8*Fx + -6*Fy} ${-8*Fy + 6*Fx} l ${8*Fx + 6*Fy} ${8*Fy - 6*Fx} z`, fill: params.F>=0? '#60f0ff':'#ffa3a3', opacity:0.95});
+  svg.appendChild(ah1);
+
+  // friction arrow (only horizontal arrow)
+  const fk = params.mu * params.m * g;
+  if(Math.abs(state.v) > 1e-4 || Math.abs(params.F * Math.cos(params.theta)) > fk + 1e-6){
+    const frDir = state.v !== 0 ? -Math.sign(state.v) : -Math.sign(params.F * Math.cos(params.theta));
+    const fpxLen = Math.min(160, fk * 3);
+    const fx1 = bx;
+    const fy1 = by + 36;
+    const fx2 = fx1 + frDir * fpxLen;
+    svg.appendChild(ns('line',{x1:fx1,y1:fy1,x2:fx2,y2:fy1,stroke:'#ffcc99','stroke-width':5,'stroke-linecap':'round',opacity:0.95}));
+    svg.appendChild(ns('path',{d:`M ${fx2} ${fy1} l ${-6*frDir} -6 l ${6*frDir} 12 z`, fill:'#ffcc99', opacity:0.95}));
+  }
+
+  // labels: F value near arrow
+  const label = ns('text',{x:bx2+12,y:by2-8, fill:'#bfeffd', 'font-size':18, 'font-weight':700});
+  label.textContent = `${params.F.toFixed(1)}N @ ${angleDeg.toFixed(0)}°`;
+  svg.appendChild(label);
+}
+
+// Physics step: advances state by dt (s)
+function physicsStep(dt){
+  const F = params.F;
+  const theta = params.theta;
+  const m = params.m;
+  const mu = params.mu;
+
+  // component along x (displacement axis)
+  const Fpar = F * Math.cos(theta); // positive right
+  // friction magnitude
+  const fk = mu * m * g;
+
+  // friction direction: opposes sliding (if moving)
+  let friction = 0;
+  if(Math.abs(state.v) > 1e-8) {
+    friction = -Math.sign(state.v) * fk;
+  } else {
+    // If at rest, friction will oppose net force up to fk (static friction simplified)
+    const netAttempt = Fpar;
+    if(Math.abs(netAttempt) <= fk){
+      // static equilibrium: no motion
+      friction = -netAttempt;
+    } else {
+      friction = -Math.sign(netAttempt) * fk;
+    }
+  }
+
+  // net force
+  const Fnet = Fpar + friction; // friction already signed
+  const a = Fnet / m;
+
+  // semi-implicit Euler for stability
+  state.v = state.v + a * dt;
+  const ds = state.v * dt;
+  state.x = state.x + ds;
+  state.t += dt;
+
+  // work increment by applied (component) force: dW = Fpar * ds
+  const dW = Fpar * ds;
+  state.W += dW;
+
+  // KE updated
+  const KE = 0.5 * m * state.v * state.v;
+  // store data
+  state.data.push({t: state.t, x: state.x, v: state.v, dW, W: state.W, KE});
+
+  return {Fpar, dW, W: state.W, KE};
+}
+
+// reset simulation
+function resetSimulation(opts){
+  // copy param updates if passed
+  if(opts && opts.keepState){}
+  state.x = 0;
+  state.v = params.u;
+  state.t = 0;
+  state.W = 0;
+  state.data = [];
+  state.KE0 = 0.5 * params.m * params.u * params.u;
+  updateMetrics(0,0,0,0, state.KE0,0);
+  graphPoints = [];
+  clearGraph();
+  layoutUpdate();
+}
+
+// update metrics display
+function updateMetrics(s, Fpar, dW, W, KE, P){
+  sVal.textContent = s.toFixed(3);
+  FparVal.textContent = Fpar.toFixed(3);
+  dWVal.textContent = dW.toFixed(4);
+  WVal.textContent = W.toFixed(4);
+  KEVal.textContent = KE.toFixed(4);
+  dKEVal.textContent = (KE - state.KE0).toFixed(4);
+  errVal.textContent = (W - (KE - state.KE0)).toFixed(4);
+  PVal.textContent = (P||0).toFixed(3);
+
+  graphInfo.textContent = `W=${W.toFixed(3)} J at s=${s.toFixed(3)} m`;
+}
+
+// Graph functions
+function clearGraph(){
+  gctx.clearRect(0,0,graphCanvas.width,graphCanvas.height);
+  // draw axes
+  gctx.save();
+  gctx.font = '12px Inter, Arial';
+  gctx.fillStyle = '#7fbcd8';
+  gctx.fillText('W (J) vs s (m)', 8, 14);
+  // base line
+  gctx.strokeStyle = 'rgba(255,255,255,0.06)';
+  gctx.beginPath();
+  gctx.moveTo(40,18);
+  gctx.lineTo(40,108);
+  gctx.lineTo(graphCanvas.width-6,108);
+  gctx.stroke();
+  gctx.restore();
+}
+function plotGraph(){
+  // scale graph to current data range
+  const paddingLeft = 40, paddingBottom = 12, paddingTop = 20, paddingRight = 6;
+  const w = graphCanvas.width - paddingLeft - paddingRight;
+  const h = graphCanvas.height - paddingTop - paddingBottom;
+
+  if(graphPoints.length < 2) { clearGraph(); return; }
+  // compute ranges
+  const sMin = Math.min(...graphPoints.map(p=>p.s));
+  const sMax = Math.max(...graphPoints.map(p=>p.s));
+  const WMin = Math.min(...graphPoints.map(p=>p.W));
+  const WMax = Math.max(...graphPoints.map(p=>p.W));
+  const sRange = (sMax - sMin) || 1;
+  const WRange = (WMax - WMin) || 1;
+
+  clearGraph();
+
+  // axes ticks
+  gctx.save();
+  gctx.strokeStyle = 'rgba(255,255,255,0.06)';
+  gctx.fillStyle = '#9fd8f0';
+  gctx.font = '11px Inter, Arial';
+
+  // x ticks
+  for(let i=0;i<=4;i++){
+    const x = paddingLeft + (i/4)*w;
+    gctx.beginPath(); gctx.moveTo(x,108); gctx.lineTo(x,104); gctx.stroke();
+    const sTick = (sMin + (i/4)*sRange).toFixed(2);
+    gctx.fillText(sTick + ' m', x-10, 120);
+  }
+  // y ticks
+  for(let i=0;i<=4;i++){
+    const y = paddingTop + (i/4)*h;
+    gctx.beginPath(); gctx.moveTo(36,y); gctx.lineTo(40,y); gctx.stroke();
+    const Wtick = (WMax - (i/4)*WRange).toFixed(2);
+    gctx.fillText(Wtick + ' J', 4, y+4);
+  }
+
+  // draw curve
+  gctx.beginPath();
+  for(let i=0;i<graphPoints.length;i++){
+    const p = graphPoints[i];
+    const x = paddingLeft + ((p.s - sMin)/sRange) * w;
+    const y = paddingTop + ((WMax - p.W)/WRange) * h;
+    if(i===0) gctx.moveTo(x,y);
+    else gctx.lineTo(x,y);
+  }
+  gctx.strokeStyle = '#60e0ff';
+  gctx.lineWidth = 2;
+  gctx.stroke();
+  gctx.restore();
+}
+
+// Main loop: fixed-step physics integrated into RAF
+function rafLoop(ts){
+  if(!lastRAF) lastRAF = ts;
+  const dtRAF = (ts - lastRAF) / 1000;
+  lastRAF = ts;
+
+  if(running){
+    // run fixed-step physics with possible multiple substeps if dt big
+    let accumulator = dtRAF;
+    // cap to avoid spiral of death
+    if(accumulator > 0.1) accumulator = 0.1;
+    while(accumulator >= physicsDt){
+      const res = physicsStep(physicsDt);
+      accumulator -= physicsDt;
+
+      // push to graph points each physics frame
+      graphPoints.push({s: state.x, W: state.W});
+      if(graphPoints.length > maxPoints) graphPoints.shift();
+      // also update small saved data for CSV already done in physicsStep
+    }
+
+
+    // update metrics from latest state
+// draw / layout updates
+layoutUpdate();
+
+// check boundaries: stop if block goes out of stage
+const rect = stage.getBoundingClientRect();
+const blockRect = block.getBoundingClientRect();
+if (blockRect.right >= rect.right - 10 || blockRect.left <= rect.left + 10) {
+  running = false;
+}
+
+// update metrics from latest state
+const latest = state.data.length ? state.data[state.data.length-1] : {x:0, v:0, dW:0, W:0, KE:state.KE0};
+
+    const P = (latest ? ( (params.F * Math.cos(params.theta)) * latest.v ) : 0 );
+    updateMetrics(latest.x, params.F * Math.cos(params.theta), latest.dW||0, latest.W||0, latest.KE||state.KE0, P);
+
+    plotGraph();
+  }
+
+  requestAnimationFrame(rafLoop);
+}
+
+// Controls
+startBtn.addEventListener('click', ()=>{
+  if(!running){
+    running = true;
+    // ensure KE0 set
+    state.KE0 = 0.5 * params.m * params.u * params.u;
+    // if state.t>0, we continue from current; else reset initial KE to current v
+    if(state.t === 0) state.KE0 = 0.5 * params.m * state.v * state.v;
+    lastRAF = null;
+  }
+});
+pauseBtn.addEventListener('click', ()=> running = false);
+resetBtn.addEventListener('click', ()=> { running = false; resetSimulation(); });
+
+// step button - single physicsDt step
+stepBtn.addEventListener('click', ()=>{
+  const res = physicsStep(physicsDt);
+  layoutUpdate();
+  const latest = state.data[state.data.length-1];
+  graphPoints.push({s: state.x, W: state.W});
+  updateMetrics(latest.x, params.F * Math.cos(params.theta), latest.dW, latest.W, latest.KE, (params.F*Math.cos(params.theta))*latest.v);
+  plotGraph();
+});
+
+// export CSV
+exportCSV.addEventListener('click', ()=>{
+  if(state.data.length === 0){ alert('No data yet. Run the simulation first.'); return; }
+  let csv = 't,x,v,dW,W,KE\n';
+  for(const r of state.data) csv += `${r.t.toFixed(6)},${r.x.toFixed(6)},${r.v.toFixed(6)},${r.dW.toFixed(9)},${r.W.toFixed(9)},${r.KE.toFixed(9)}\n`;
+  const blob = new Blob([csv], {type:'text/csv'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'work_sim_data.csv'; a.click();
+  URL.revokeObjectURL(url);
+});
+
+// presets
+presetChips.forEach(chip=>{
+  chip.addEventListener('click', ()=>{
+    const p = chip.dataset.preset;
+    running = false;
+    switch(p){
+      case 'basic':
+        setAll({F:10, theta:0, m:2, u:0, mu:0, scale:80});
+        break;
+      case 'opp':
+        setAll({F:-10, theta:0, m:2, u:4, mu:0, scale:80});
+        break;
+      case 'angle':
+        setAll({F:15, theta:30*Math.PI/180, m:2, u:0, mu:0, scale:80});
+        break;
+      case 'fric':
+        setAll({F:10, theta:0, m:2, u:0, mu:0.3, scale:80});
+        break;
+      case 'verify':
+        setAll({F:10, theta:0, m:2, u:0, mu:0, scale:80});
+        break;
+    }
+    resetSimulation();
+  });
+});
+
+// set multiple params & update inputs
+function setAll(obj){
+  if('F' in obj){ params.F = obj.F; els.forceRange.value = obj.F; els.forceNum.value = obj.F; }
+  if('theta' in obj){ params.theta = obj.theta; els.angleRange.value = (obj.theta*180/Math.PI); els.angleNum.value = (obj.theta*180/Math.PI); }
+  if('m' in obj){ params.m = obj.m; els.massRange.value = obj.m; els.massNum.value = obj.m; }
+  if('u' in obj){ params.u = obj.u; els.uRange.value = obj.u; els.uNum.value = obj.u; }
+  if('mu' in obj){ params.mu = obj.mu; els.muRange.value = obj.mu; els.muNum.value = obj.mu; }
+  if('scale' in obj){ params.scale = obj.scale; els.scaleRange.value = obj.scale; els.scaleNum.value = obj.scale; }
+  // update state v if initial speed changed
+  state.v = params.u;
+}
+
+// update params when inputs change (already bound earlier)
+els.forceRange.addEventListener('input', ()=>{ params.F = Number(els.forceRange.value); els.forceNum.value = els.forceRange.value; drawForceArrows(); });
+els.forceNum.addEventListener('change', ()=>{ params.F = Number(els.forceNum.value); els.forceRange.value = els.forceNum.value; drawForceArrows(); });
+els.angleRange.addEventListener('input', ()=>{ params.theta = Number(els.angleRange.value)*Math.PI/180; els.angleNum.value = els.angleRange.value; drawForceArrows(); });
+els.angleNum.addEventListener('change', ()=>{ params.theta = Number(els.angleNum.value)*Math.PI/180; els.angleRange.value = els.angleNum.value; drawForceArrows(); });
+els.massRange.addEventListener('input', ()=>{ params.m = Number(els.massRange.value); els.massNum.value = els.massRange.value; });
+els.massNum.addEventListener('change', ()=>{ params.m = Number(els.massNum.value); els.massRange.value = els.massNum.value; });
+els.uRange.addEventListener('input', ()=>{ params.u = Number(els.uRange.value); els.uNum.value = els.uRange.value; state.v = params.u; });
+els.uNum.addEventListener('change', ()=>{ params.u = Number(els.uNum.value); els.uRange.value = els.uNum.value; state.v = params.u; });
+els.muRange.addEventListener('input', ()=>{ params.mu = Number(els.muRange.value); els.muNum.value = els.muRange.value; drawForceArrows(); });
+els.muNum.addEventListener('change', ()=>{ params.mu = Number(els.muNum.value); els.muRange.value = els.muNum.value; drawForceArrows(); });
+els.scaleRange.addEventListener('input', ()=>{ params.scale = Number(els.scaleRange.value); els.scaleNum.value = els.scaleRange.value; layoutUpdate(); });
+els.scaleNum.addEventListener('change', ()=>{ params.scale = Number(els.scaleNum.value); els.scaleRange.value = els.scaleNum.value; layoutUpdate(); });
+
+// initial setup
+resetSimulation();
+drawForceArrows();
+clearGraph();
+requestAnimationFrame(rafLoop);
+
+// responsiveness: resize canvas to match CSS display size
+function resizeCanvas(){
+  const rect = graphCanvas.getBoundingClientRect();
+  graphCanvas.width = Math.max(300, Math.floor(rect.width));
+  graphCanvas.height = Math.max(120, Math.floor(rect.height));
+  clearGraph();
+  plotGraph();
+}
+window.addEventListener('resize', ()=>{ resizeCanvas(); layoutUpdate(); });
+resizeCanvas();
+
+</script>
+</body>
+</html>
